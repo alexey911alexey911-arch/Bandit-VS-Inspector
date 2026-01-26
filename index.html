@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bandit vs Inspector Online PRO</title>
+    <style>
+        :root {
+            --bg-color: #121212; --panel-bg: #1e1e1e; --text-color: #e0e0e0;
+            --card-bg: #2a2a2a; --accent-red: #ff5252; --accent-blue: #448aff;
+            --highlight: #ffd700; --card-size: 80px;
+            --accent-green: #4caf50;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg-color); color: var(--text-color); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        header { text-align: center; padding: 10px; background: #000; border-bottom: 1px solid #333; display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; }
+        
+        .role-selector { display: flex; gap: 10px; }
+        .role-btn { padding: 5px 15px; border: 1px solid #444; background: #222; color: #fff; cursor: pointer; border-radius: 4px; }
+        .role-btn.active { border-color: var(--highlight); background: #333; }
+
+        .main-layout { display: flex; flex: 1; padding: 20px; gap: 30px; justify-content: center; align-items: flex-start; }
+        .field-section { background: var(--panel-bg); padding: 20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .game-grid-container { display: grid; grid-template-columns: 40px auto 40px; grid-template-rows: 40px auto 40px; gap: 10px; }
+        .board { grid-column: 2; grid-row: 2; display: grid; grid-template-columns: repeat(5, var(--card-size)); grid-template-rows: repeat(5, var(--card-size)); gap: 10px; }
+        .card { background-color: var(--card-bg); border: 1px solid #444; border-radius: 6px; display: flex; justify-content: center; align-items: center; text-align: center; font-size: 0.85rem; cursor: pointer; position: relative; transition: all 0.2s; padding: 5px; word-break: break-word; }
+        .status-dead { color: #777; border-color: rgba(255, 82, 82, 0.4) !important; }
+        .status-dead::after { content: "✕"; position: absolute; font-size: 3rem; color: var(--accent-red); opacity: 0.3; }
+        .status-innocent { border: 2px solid var(--accent-blue) !important; }
+        .card.target-valid { background-color: #353525; border: 1px dashed var(--highlight); animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+        
+        .side-panel { width: 350px; display: flex; flex-direction: column; gap: 20px; height: 100%; }
+        .info-block { background: var(--panel-bg); padding: 15px; border-radius: 10px; border-left: 4px solid var(--accent-blue); }
+        .hand-container { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .hand-card { padding: 8px; background: #333; border: 1px solid #444; border-radius: 4px; font-size: 0.8rem; text-align: center; cursor: pointer; }
+        .action-btn { width: 100%; padding: 12px; margin: 5px 0; border: none; border-radius: 6px; background: #444; color: white; font-weight: bold; cursor: pointer; }
+        .action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .action-btn.kill { background: var(--accent-red); }
+        .log-area { flex: 1; background: #000; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; overflow-y: auto; color: #888; max-height: 200px; border: 1px solid #222; }
+        .shift-btn { background: #252525; border: 1px solid #333; color: #666; cursor: pointer; border-radius: 4px; }
+        .shift-btn:disabled { opacity: 0.1; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: #222; padding: 30px; border-radius: 15px; text-align: center; border: 1px solid #444; max-width: 400px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Bandit vs Inspector</h1>
+        <div class="role-selector">
+            <span>Вы играете за: </span>
+            <button id="btn-role-bandit" class="role-btn" onclick="ui.setLocalRole('bandit')">Бандита</button>
+            <button id="btn-role-inspector" class="role-btn" onclick="ui.setLocalRole('inspector')">Инспектора</button>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <section class="field-section">
+            <div class="game-grid-container">
+                <div style="grid-column: 2; grid-row: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftCol(0, -1)">▲</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftCol(1, -1)">▲</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftCol(2, -1)">▲</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftCol(3, -1)">▲</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftCol(4, -1)">▲</button>
+                </div>
+                <div style="grid-column: 1; grid-row: 2; display: grid; grid-template-rows: repeat(5, 1fr); gap: 10px;">
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftRow(0, -1)">◀</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftRow(1, -1)">◀</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftRow(2, -1)">◀</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftRow(3, -1)">◀</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftRow(4, -1)">◀</button>
+                </div>
+                <div id="board" class="board"></div>
+                <div style="grid-column: 3; grid-row: 2; display: grid; grid-template-rows: repeat(5, 1fr); gap: 10px;">
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftRow(0, 1)">▶</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftRow(1, 1)">▶</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftRow(2, 1)">▶</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftRow(3, 1)">▶</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftRow(4, 1)">▶</button>
+                </div>
+                <div style="grid-column: 2; grid-row: 3; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;">
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftCol(0, 1)">▼</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftCol(1, 1)">▼</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftCol(2, 1)">▼</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftCol(3, 1)">▼</button>
+                    <button class="shift-btn shift-ctrl" onclick="window.game.shiftCol(4, 1)">▼</button>
+                </div>
+            </div>
+            <button class="action-btn" onclick="window.game.resetGame()" style="margin-top:20px; background:#333;">НОВАЯ ИГРА</button>
+        </section>
+
+        <section class="side-panel">
+            <div class="info-block">
+                <div id="turn-indicator" style="font-weight:bold; font-size:1.2rem; margin-bottom:10px;">ХОД: ...</div>
+                <div id="identity-area">
+                    <div style="color:#888; font-size:0.9rem;">Ваш персонаж:</div>
+                    <div id="player-identity" style="color: var(--highlight); font-size:1.1rem; font-weight:bold;">?</div>
+                </div>
+                <div id="kill-count-area" style="margin-top: 15px; border-top: 1px solid #333; padding-top: 10px;">
+                    <div style="color:#888; font-size:0.9rem;">Жертв для победы бандита:</div>
+                    <div id="kill-counter" style="color: var(--accent-red); font-size:1.2rem; font-weight:bold;">0 / 14</div>
+                </div>
+                <div id="inspector-hand-ui" style="display:none; margin-top: 15px;">
+                    <div style="color:#888; font-size:0.9rem;">Ваши карты подозреваемых:</div>
+                    <div id="hand-cards" class="hand-container"></div>
+                </div>
+            </div>
+            <div class="controls-block">
+                <div id="instruction-text" style="font-size: 0.9rem; color: var(--highlight); margin-bottom: 10px;"></div>
+                <div id="action-buttons"></div>
+            </div>
+            <div id="game-log" class="log-area"></div>
+        </section>
+    </div>
+
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <h2 id="modal-title"></h2>
+            <p id="modal-text" style="font-size: 1.1rem; line-height: 1.4;"></p>
+            <button class="action-btn" onclick="ui.closeModal()">ПРИНЯТО</button>
+        </div>
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyBvy2NpltXHdoRFyLo944tu111oBKHF_bg",
+        authDomain: "bandit-vs-inspector.firebaseapp.com",
+        databaseURL: "https://bandit-vs-inspector-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "bandit-vs-inspector",
+        storageBucket: "bandit-vs-inspector.firebasestorage.app",
+        messagingSenderId: "506609326177",
+        appId: "1:506609326177:web:7676ed6988876dcce97220",
+        measurementId: "G-8ZCJD97D6J"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const gameRef = ref(db, 'bandit_game/v2_state');
+
+    const NAMES = ["Анна", "Борис", "Виктор", "Галина", "Дмитрий", "Елена", "Жанна", "Захар", "Иван", "Кира", "Леонид", "Мария", "Николай", "Ольга", "Павел", "Роман", "Светлана", "Тамара", "Ульяна", "Фёдор", "Харитон", "Цветков", "Чайка", "Шурик", "Юрий"];
+
+    class BanditGame {
+        constructor() {
+            this.grid = []; this.deck = []; this.banditId = null; this.inspectorId = null;
+            this.inspectorHand = []; this.activePlayer = 'bandit'; 
+            this.phase = 'setup_bandit'; this.selectedAction = null; this.lastShift = null; this.gameOver = false;
+            this.logs = [];
+        }
+
+        async sync() {
+            await set(gameRef, {
+                grid: this.grid, deck: this.deck, banditId: this.banditId, 
+                inspectorId: this.inspectorId, inspectorHand: this.inspectorHand,
+                activePlayer: this.activePlayer, phase: this.phase, 
+                lastShift: this.lastShift || {}, gameOver: this.gameOver, logs: this.logs
+            });
+        }
+
+        resetGame() {
+            let tempNames = [...NAMES].sort(() => Math.random() - 0.5);
+            this.grid = []; this.deck = [];
+            let idCounter = 0;
+            for (let r = 0; r < 5; r++) {
+                let row = [];
+                for (let c = 0; c < 5; c++) {
+                    row.push({ name: tempNames[idCounter], id: idCounter, dead: false, innocent: false });
+                    this.deck.push(idCounter); idCounter++;
+                }
+                this.grid.push(row);
+            }
+            this.deck.sort(() => Math.random() - 0.5);
+            this.banditId = this.deck.pop();
+            this.inspectorId = null; this.inspectorHand = [];
+            this.activePlayer = 'bandit'; this.phase = 'setup_bandit';
+            this.gameOver = false; 
+            this.logs = [{text: "Миссия: Бандит должен убить соседа.", type: "system"}];
+            this.sync();
+        }
+
+        findCoords(id) {
+            if (id === null) return null;
+            for(let r=0; r<5; r++) for(let c=0; c<5; c++) if(this.grid[r][c].id === id) return {r, c};
+            return null;
+        }
+
+        getNeighbors(r, c) {
+            let n = [];
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    if (dr === 0 && dc === 0) continue;
+                    let nr = r + dr, nc = c + dc;
+                    if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) n.push(this.grid[nr][nc].id);
+                }
+            }
+            return n;
+        }
+
+        shiftRow(r, dir) {
+            if (this.lastShift && this.lastShift.type === 'row' && this.lastShift.index === r && this.lastShift.dir === -dir) return;
+            if (dir === 1) this.grid[r].unshift(this.grid[r].pop());
+            else this.grid[r].push(this.grid[r].shift());
+            this.lastShift = { type: 'row', index: r, dir: dir };
+            this.log(`Ряд ${r + 1} сдвинут ${dir === 1 ? 'вправо' : 'влево'}.`, 'shift');
+            this.endAction();
+        }
+
+        shiftCol(c, dir) {
+            if (this.lastShift && this.lastShift.type === 'col' && this.lastShift.index === c && this.lastShift.dir === -dir) return;
+            let col = [];
+            for(let r=0; r<5; r++) col.push(this.grid[r][c]);
+            if (dir === 1) col.unshift(col.pop());
+            else col.push(col.shift());
+            for(let r=0; r<5; r++) this.grid[r][c] = col[r];
+            this.lastShift = { type: 'col', index: c, dir: dir };
+            this.log(`Столбец ${c + 1} сдвинут ${dir === 1 ? 'вниз' : 'вверх'}.`, 'shift');
+            this.endAction();
+        }
+
+        setupBanditKill(id) {
+            let p = this.findCoords(this.banditId);
+            if (!this.getNeighbors(p.r, p.c).includes(id)) return;
+            this.killSuspect(id);
+            this.phase = 'setup_inspector'; this.activePlayer = 'inspector';
+            for(let i=0; i<4; i++) this.inspectorHand.push(this.deck.pop());
+            this.log("Первая жертва пала! Инспектор, выберите маскировку.", "bandit");
+            this.sync();
+        }
+
+        setupInspectorIdentity(id) {
+            this.inspectorId = id;
+            this.inspectorHand = this.inspectorHand.filter(i => i !== id);
+            this.phase = 'main'; this.activePlayer = 'bandit';
+            this.log("Инспектор в игре. Охота началась.", "inspector");
+            this.sync();
+        }
+
+        actionKill(id) {
+            let p = this.findCoords(this.banditId);
+            if (this.getNeighbors(p.r, p.c).includes(id)) { 
+                this.killSuspect(id); 
+                this.endAction(); 
+            }
+        }
+
+        killSuspect(id) {
+            let c = this.findCoords(id); let p = this.grid[c.r][c.c];
+            p.dead = true; 
+            this.log(`УБИЙСТВО: ${p.name}`, "bandit");
+            
+            let deadCount = this.grid.flat().filter(cell => cell.dead).length;
+
+            if (id === this.inspectorId) { 
+                this.gameOver = true; 
+                this.log("ИНСПЕКТОР УБИТ! ПОБЕДА БАНДИТА.", "bandit"); 
+                setTimeout(() => ui.showModal("ПОБЕДА БАНДИТА", "Вы ликвидировали инспектора! Город в ваших руках."), 300);
+            } 
+            else if (deadCount >= 14) {
+                this.gameOver = true;
+                this.log("14 ЖЕРТВ! ПОБЕДА БАНДИТА.", "bandit");
+                setTimeout(() => ui.showModal("ПОБЕДА БАНДИТА", "Убито 14 человек. Инспектор не справился с охраной города, преступность победила!"), 300);
+            }
+            else if (p.innocent) {
+                this.runInterrogation(id, 'inspector');
+            }
+        }
+
+        actionAccuse(id) {
+            if (id === this.banditId) { 
+                this.log(`БАНДИТ ПОЙМАН! ПОБЕДА ИНСПЕКТОРА.`, "inspector"); 
+                this.gameOver = true; 
+                this.sync(); 
+                setTimeout(() => ui.showModal("ПОБЕДА ИНСПЕКТОРА", "Правосудие восторжествовало! Бандит пойман."), 300);
+            }
+            else { 
+                this.log(`ОШИБКА: ${this.grid[this.findCoords(id).r][this.findCoords(id).c].name} - мирный.`, "inspector"); 
+                this.endAction(); 
+            }
+        }
+
+        actionDisguise() {
+            if (this.deck.length === 0) return;
+            let oldId = this.banditId; this.banditId = this.deck.pop();
+            let c = this.findCoords(oldId); this.grid[c.r][c.c].innocent = true;
+            this.log("Бандит сменил внешность.", "bandit"); 
+            this.endAction();
+        }
+
+        actionExoneratePrep() { 
+            if (this.deck.length > 0) this.inspectorHand.push(this.deck.pop()); 
+            this.phase = 'inspector_exonerate_discard'; this.sync(); 
+        }
+
+        actionExonerateFinish(id) {
+            this.inspectorHand = this.inspectorHand.filter(i => i !== id);
+            let c = this.findCoords(id); 
+            if (c && !this.grid[c.r][c.c].dead) { 
+                this.grid[c.r][c.c].innocent = true; 
+                this.log(`ОПРАВДАНИЕ: ${this.grid[c.r][c.c].name}`, "inspector");
+                this.runInterrogation(id, 'bandit'); 
+            }
+            this.endAction();
+        }
+
+        runInterrogation(id, who) {
+            let tPos = this.findCoords(id);
+            let actorId = (who === 'bandit' ? this.banditId : this.inspectorId);
+            let cPos = this.findCoords(actorId);
+            let near = Math.abs(tPos.r - cPos.r) <= 1 && Math.abs(tPos.c - cPos.c) <= 1;
+            const msg = `РЕЗУЛЬТАТ ДОПРОСА: ${who === 'bandit' ? 'Бандит' : 'Инспектор'} сейчас ${near ? 'РЯДОМ' : 'ДАЛЕКО'} от ${this.grid[tPos.r][tPos.c].name}.`;
+            this.log(msg, who === 'bandit' ? 'bandit' : 'inspector');
+            setTimeout(() => ui.showModal("ДОПРОС", msg), 500);
+        }
+
+        endAction() {
+            this.activePlayer = this.activePlayer === 'bandit' ? 'inspector' : 'bandit';
+            this.selectedAction = null; this.phase = 'main'; this.sync();
+        }
+
+        log(m, type = 'system') { 
+            this.logs.unshift({text: m, type: type}); 
+            if(this.logs.length > 20) this.logs.pop(); 
+        }
+    }
+
+    const game = new BanditGame();
+    window.game = game;
+
+    const ui = {
+        localRole: null, 
+
+        setLocalRole(role) {
+            this.localRole = role;
+            document.getElementById('btn-role-bandit').classList.toggle('active', role === 'bandit');
+            document.getElementById('btn-role-inspector').classList.toggle('active', role === 'inspector');
+            this.render();
+        },
+
+        showModal(t, txt) { 
+            document.getElementById('modal-title').textContent = t; 
+            document.getElementById('modal-text').innerText = txt; 
+            document.getElementById('modal').style.display = 'flex'; 
+        },
+
+        closeModal() { document.getElementById('modal').style.display = 'none'; },
+
+        render() {
+            const g = window.game;
+            const isMyTurn = (this.localRole === g.activePlayer);
+            
+            const turnEl = document.getElementById('turn-indicator');
+            turnEl.textContent = `ХОД: ${g.activePlayer === 'bandit' ? 'БАНДИТА' : 'ИНСПЕКТОРА'}`;
+            turnEl.style.color = g.activePlayer === 'bandit' ? 'var(--accent-red)' : 'var(--accent-blue)';
+            if (!isMyTurn) turnEl.textContent += " (Ожидание...)";
+
+            const identityEl = document.getElementById('player-identity');
+            if (this.localRole === 'bandit') {
+                let p = g.findCoords(g.banditId);
+                identityEl.textContent = p ? g.grid[p.r][p.c].name : "Неизвестно";
+            } else if (this.localRole === 'inspector') {
+                let p = g.findCoords(g.inspectorId);
+                identityEl.textContent = p ? g.grid[p.r][p.c].name : (g.phase === 'setup_inspector' ? "Выбирайте..." : "Не выбран");
+            } else {
+                identityEl.textContent = "Выберите роль вверху";
+            }
+
+            const deadCount = g.grid.flat().filter(cell => cell.dead).length;
+            document.getElementById('kill-counter').textContent = `${deadCount} / 14`;
+
+            const handUi = document.getElementById('inspector-hand-ui');
+            const handContainer = document.getElementById('hand-cards');
+            if (this.localRole === 'inspector' && g.inspectorHand) {
+                handUi.style.display = 'block';
+                handContainer.innerHTML = '';
+                g.inspectorHand.forEach(cardId => {
+                    let c = g.findCoords(cardId);
+                    if (!c) return;
+                    let div = document.createElement('div'); div.className = 'hand-card';
+                    div.textContent = g.grid[c.r][c.c].name;
+                    if (isMyTurn) div.onclick = () => this.handleHandClick(cardId);
+                    handContainer.appendChild(div);
+                });
+            } else { handUi.style.display = 'none'; }
+
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            for (let r = 0; r < 5; r++) {
+                for (let c = 0; c < 5; c++) {
+                    let cell = g.grid[r][c];
+                    let div = document.createElement('div');
+                    div.className = 'card' + (cell.dead ? ' status-dead' : '') + (cell.innocent ? ' status-innocent' : '');
+                    div.textContent = cell.name;
+                    
+                    if (isMyTurn && this.isTargetMode(r, c)) {
+                        div.classList.add('target-valid');
+                        div.onclick = () => this.handleBoardClick(cell.id);
+                    }
+                    boardEl.appendChild(div);
+                }
+            }
+
+            document.querySelectorAll('.shift-ctrl').forEach(btn => btn.disabled = !isMyTurn || g.phase !== 'main');
+
+            const actionBtns = document.getElementById('action-buttons');
+            actionBtns.innerHTML = '';
+            const instructions = document.getElementById('instruction-text');
+            
+            if (g.gameOver) {
+                instructions.textContent = "ИГРА ЗАКОНЧЕНА";
+            } else if (!isMyTurn) {
+                instructions.textContent = "Ждите хода противника...";
+            } else {
+                if (g.phase === 'setup_bandit') {
+                    instructions.textContent = "Выберите соседа, чтобы убить его.";
+                } else if (g.phase === 'setup_inspector') {
+                    instructions.textContent = "Выберите карту подозреваемого из списка выше.";
+                } else if (g.phase === 'inspector_exonerate_discard') {
+                    instructions.textContent = "Выберите карту из руки, чтобы оправдать её владельца.";
+                } else {
+                    instructions.textContent = g.selectedAction ? "Выберите цель на поле" : "Ваш ход. Сдвиньте ряд или выберите действие:";
+                    if (g.activePlayer === 'bandit') {
+                        this.createBtn(actionBtns, 'УБИТЬ СОСЕДА', 'kill', () => { g.selectedAction = 'kill'; this.render(); });
+                        this.createBtn(actionBtns, 'СМЕНИТЬ ОБЛИК', '', () => g.actionDisguise());
+                    } else {
+                        this.createBtn(actionBtns, 'ОБВИНИТЬ (РЯДОМ)', 'kill', () => { g.selectedAction = 'accuse'; this.render(); });
+                        this.createBtn(actionBtns, 'ОПРАВДАТЬ', '', () => g.actionExoneratePrep());
+                    }
+                }
+            }
+
+            document.getElementById('game-log').innerHTML = g.logs.map(l => {
+                let color = '#888';
+                if (l.type === 'bandit') color = 'var(--accent-red)';
+                else if (l.type === 'inspector') color = 'var(--accent-blue)';
+                else if (l.type === 'shift') color = 'var(--accent-green)';
+                return `<div style="color:${color}">> ${l.text || l}</div>`;
+            }).join('');
+        },
+
+        createBtn(parent, txt, cls, fn) {
+            let b = document.createElement('button'); b.className = 'action-btn ' + cls;
+            b.textContent = txt; b.onclick = fn; parent.appendChild(b);
+        },
+
+        isTargetMode(r, c) {
+            const g = window.game;
+            let actorId = g.activePlayer === 'bandit' ? g.banditId : g.inspectorId;
+            if (g.phase === 'setup_bandit' || g.selectedAction) {
+                let p = g.findCoords(actorId); if (!p) return false;
+                let n = g.getNeighbors(p.r, p.c);
+                if (g.selectedAction === 'accuse') n.push(g.inspectorId);
+                return n.includes(g.grid[r][c].id);
+            }
+            return false;
+        },
+
+        handleBoardClick(id) {
+            if (window.game.phase === 'setup_bandit') window.game.setupBanditKill(id);
+            else if (window.game.selectedAction === 'kill') window.game.actionKill(id);
+            else if (window.game.selectedAction === 'accuse') window.game.actionAccuse(id);
+        },
+
+        handleHandClick(id) {
+            if (window.game.phase === 'setup_inspector') window.game.setupInspectorIdentity(id);
+            else if (window.game.phase === 'inspector_exonerate_discard') window.game.actionExonerateFinish(id);
+        }
+    };
+    window.ui = ui;
+
+    onValue(gameRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            Object.assign(game, data);
+            ui.render();
+        } else {
+            game.resetGame();
+        }
+    });
+</script>
+</body>
+</html>
