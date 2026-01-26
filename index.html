@@ -23,12 +23,10 @@
         .board { grid-column: 2; grid-row: 2; display: grid; grid-template-columns: repeat(5, var(--card-size)); grid-template-rows: repeat(5, var(--card-size)); gap: 10px; }
         
         .card { background-color: var(--card-bg); border: 1px solid #444; border-radius: 6px; display: flex; justify-content: center; align-items: center; text-align: center; font-size: 0.85rem; cursor: pointer; position: relative; transition: all 0.2s; padding: 5px; word-break: break-word; }
-        .status-dead { color: #555; border-color: rgba(255, 82, 82, 0.2) !important; background: #1a1a1a; }
+        .status-dead { color: #555; border-color: rgba(255, 82, 82, 0.4) !important; background: #1a1a1a; }
         .status-dead::after { content: "✕"; position: absolute; font-size: 3rem; color: var(--accent-red); opacity: 0.2; }
         .status-innocent { border: 2px solid var(--accent-blue) !important; }
-        
         .card.target-valid { background-color: #353525; border: 1px dashed var(--highlight); animation: pulse 1.5s infinite; }
-        .card.selected-for-cleanup { border: 2px solid var(--highlight) !important; box-shadow: 0 0 15px var(--highlight); transform: scale(0.95); }
         
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
         
@@ -41,15 +39,12 @@
         .action-btn:hover:not(:disabled) { filter: brightness(1.2); }
         .action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
         .action-btn.kill { background: var(--accent-red); }
-        .action-btn.disguise { background: #6a1b9a; }
-        .action-btn.cleanup-mode { background: #5d4037; }
-        .action-btn.confirm-cleanup { background: var(--accent-green); }
 
         .log-area { flex: 1; background: #000; padding: 10px; border-radius: 6px; font-family: monospace; font-size: 0.8rem; overflow-y: auto; max-height: 250px; border: 1px solid #222; }
         .log-line { margin-bottom: 4px; border-bottom: 1px solid #111; padding-bottom: 2px; }
         .log-bandit { color: var(--accent-red); }
         .log-inspector { color: var(--accent-blue); }
-        .log-system { color: var(--accent-green); }
+        .log-shift { color: var(--accent-green); }
 
         .shift-btn { background: #252525; border: 1px solid #333; color: #666; cursor: pointer; border-radius: 4px; }
         .shift-btn:disabled { opacity: 0.1; }
@@ -57,9 +52,7 @@
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; }
         .modal-content { background: #222; padding: 30px; border-radius: 15px; text-align: center; border: 2px solid var(--highlight); max-width: 400px; }
         
-        .death-counter { margin-top: 10px; font-size: 0.85rem; color: #aaa; }
-        .death-bar { height: 4px; background: #333; margin-top: 5px; border-radius: 2px; overflow: hidden; }
-        .death-progress { height: 100%; background: var(--accent-red); transition: width 0.5s; }
+        .death-counter { margin-top: 10px; font-size: 0.9rem; color: #aaa; }
     </style>
 </head>
 <body>
@@ -90,9 +83,7 @@
                     <button class="shift-btn shift-ctrl" onclick="window.game.shiftRow(3, -1)">◀</button>
                     <button class="shift-btn shift-ctrl" onclick="window.game.shiftRow(4, -1)">◀</button>
                 </div>
-                
                 <div id="board" class="board"></div>
-
                 <div style="grid-column: 3; grid-row: 2; display: grid; grid-template-rows: repeat(5, 1fr); gap: 10px;">
                     <button class="shift-btn shift-ctrl" onclick="window.game.shiftRow(0, 1)">▶</button>
                     <button class="shift-btn shift-ctrl" onclick="window.game.shiftRow(1, 1)">▶</button>
@@ -118,10 +109,7 @@
                     <div style="color:#888; font-size:0.9rem;">Ваш персонаж:</div>
                     <div id="player-identity" style="color: var(--highlight); font-size:1.1rem; font-weight:bold;">?</div>
                 </div>
-                <div class="death-counter">
-                    Жертв Бандита: <span id="kill-count">0</span> / 14
-                    <div class="death-bar"><div id="death-progress" class="death-progress" style="width: 0%"></div></div>
-                </div>
+                <div id="death-stats" class="death-counter">Убито: 0 / 14</div>
                 <div id="inspector-hand-ui" style="display:none; margin-top: 15px;">
                     <div id="hand-cards" class="hand-container"></div>
                 </div>
@@ -161,15 +149,14 @@
     const db = getDatabase(app);
     const gameRef = ref(db, 'bandit_game/v2_state');
 
-    const NAMES = ["Анна", "Борис", "Виктор", "Галина", "Дмитрий", "Елена", "Жанна", "Захар", "Иван", "Кира", "Леонид", "Мария", "Николай", "Ольга", "Павел", "Роман", "Светлана", "Тамара", "Ульяна", "Фёдор", "Харитон", "Цветков", "Чайка", "Шурик", "Юрий", "Артём", "Диана", "Максим", "Олег", "Петр"];
+    const NAMES = ["Анна", "Борис", "Виктор", "Галина", "Дмитрий", "Елена", "Жанна", "Захар", "Иван", "Кира", "Леонид", "Мария", "Николай", "Ольга", "Павел", "Роман", "Светлана", "Тамара", "Ульяна", "Фёдор", "Харитон", "Цветков", "Чайка", "Шурик", "Юрий"];
 
     class BanditGame {
         constructor() {
             this.grid = []; this.deck = []; this.banditId = null; this.inspectorId = null;
             this.inspectorHand = []; this.activePlayer = 'bandit'; 
-            this.phase = 'setup_bandit'; this.selectedAction = null; this.lastShift = null; 
-            this.gameOver = false; this.logs = [];
-            this.cleanupSelection = [];
+            this.phase = 'setup_bandit'; this.selectedAction = null; this.lastShift = null; this.gameOver = false;
+            this.logs = []; // Теперь это массив объектов {text, type}
         }
 
         async sync() {
@@ -182,23 +169,23 @@
         }
 
         resetGame() {
-            let names = [...NAMES].sort(() => Math.random() - 0.5);
-            this.grid = []; this.deck = []; let id = 0;
+            let tempNames = [...NAMES].sort(() => Math.random() - 0.5);
+            this.grid = []; this.deck = [];
+            let idCounter = 0;
             for (let r = 0; r < 5; r++) {
                 let row = [];
                 for (let c = 0; c < 5; c++) {
-                    row.push({ name: names[id], id: id, dead: false, innocent: false });
-                    id++;
+                    row.push({ name: tempNames[idCounter], id: idCounter, dead: false, innocent: false });
+                    this.deck.push(idCounter); idCounter++;
                 }
                 this.grid.push(row);
             }
-            for(let i=id; i<names.length; i++) { this.deck.push({ name: names[i], id: i, dead: false, innocent: false }); }
-            
-            const flat = this.grid.flat();
-            this.banditId = flat[Math.floor(Math.random() * flat.length)].id;
+            this.deck.sort(() => Math.random() - 0.5);
+            this.banditId = this.deck.pop();
+            this.inspectorId = null; this.inspectorHand = [];
             this.activePlayer = 'bandit'; this.phase = 'setup_bandit';
-            this.logs = [{text: "Миссия: Бандит должен убить соседа.", role: 'system'}];
             this.gameOver = false;
+            this.logs = [{text: "Миссия: Бандит должен убить соседа.", type: 'system'}];
             this.sync();
         }
 
@@ -222,7 +209,7 @@
         shiftRow(r, dir) {
             if (dir === 1) this.grid[r].unshift(this.grid[r].pop());
             else this.grid[r].push(this.grid[r].shift());
-            this.log(`Ряд ${r + 1} сдвинут ${dir === 1 ? 'вправо' : 'влево'}.`, 'system');
+            this.log(`Ряд ${r + 1} сдвинут ${dir === 1 ? 'вправо' : 'влево'}.`, 'shift');
             this.endAction();
         }
 
@@ -232,20 +219,7 @@
             if (dir === 1) col.unshift(col.pop());
             else col.push(col.shift());
             for(let r=0; r<5; r++) this.grid[r][c] = col[r];
-            this.log(`Столбец ${c + 1} сдвинут ${dir === 1 ? 'вниз' : 'вверх'}.`, 'system');
-            this.endAction();
-        }
-
-        confirmCleanup() {
-            if (this.cleanupSelection.length === 0) return;
-            this.cleanupSelection.forEach(id => {
-                let pos = this.findCoords(id);
-                if (pos && this.deck.length > 0) {
-                    this.grid[pos.r][pos.c] = this.deck.pop();
-                }
-            });
-            this.log(`УТИЛИЗАЦИЯ: Убрано персонажей: ${this.cleanupSelection.length}.`, this.activePlayer);
-            this.cleanupSelection = [];
+            this.log(`Столбец ${c + 1} сдвинут ${dir === 1 ? 'вниз' : 'вверх'}.`, 'shift');
             this.endAction();
         }
 
@@ -254,10 +228,7 @@
             if (!this.getNeighbors(p.r, p.c).includes(id)) return;
             this.killSuspect(id);
             this.phase = 'setup_inspector'; this.activePlayer = 'inspector';
-            for(let i=0; i<4; i++) {
-                let card = this.deck.pop();
-                if(card) this.inspectorHand.push(card.id);
-            }
+            for(let i=0; i<4; i++) this.inspectorHand.push(this.deck.pop());
             this.sync();
         }
 
@@ -269,36 +240,59 @@
             this.sync();
         }
 
+        actionKill(id) {
+            let p = this.findCoords(this.banditId);
+            if (this.getNeighbors(p.r, p.c).includes(id)) { this.killSuspect(id); this.endAction(); }
+        }
+
         killSuspect(id) {
             let c = this.findCoords(id); 
             let target = this.grid[c.r][c.c];
-            if (target.dead) return; // Нельзя убить мертвого
-
             target.dead = true;
             this.log(`УБИТ: ${target.name}`, 'bandit');
 
-            const totalDead = this.grid.flat().filter(cell => cell.dead).length;
-
+            // Проверка 14 жертв
+            const deadCount = this.grid.flat().filter(cell => cell.dead).length;
+            
             if (id === this.inspectorId) { 
                 this.gameOver = true; 
                 this.log("ПОБЕДА БАНДИТА: Инспектор ликвидирован.", 'bandit'); 
-                setTimeout(() => ui.showModal("ПОБЕДА БАНДИТА", `Инспектор (${target.name}) пал! Город в вашей власти.`), 500);
+                setTimeout(() => ui.showModal("ПОБЕДА БАНДИТА", "Вы вычислили и убили Инспектора! Город в вашей власти."), 500);
             } 
-            else if (totalDead >= 14) {
+            else if (deadCount >= 14) {
                 this.gameOver = true;
                 this.log("ПОБЕДА БАНДИТА: 14 жертв.", 'bandit');
-                setTimeout(() => ui.showModal("ПОБЕДА БАНДИТА", "Убито 14 человек. Полиция парализована, Бандит победил по очкам хаоса!"), 500);
+                setTimeout(() => ui.showModal("ПОБЕДА БАНДИТА", "Убито 14 человек. Полиция в панике, Бандит победил по очкам хаоса!"), 500);
             }
             else if (target.innocent) {
                 this.runInterrogation(id, 'inspector');
             }
         }
 
+        actionDisguise() {
+            if (this.deck.length === 0) return;
+            let nextId = this.deck.pop();
+            let coords = this.findCoords(nextId);
+            let target = this.grid[coords.r][coords.c];
+
+            if (target.dead) {
+                this.log(`ПРОВАЛ: Попытка принять облик мертвеца (${target.name}).`, 'bandit');
+                // Бандит тратит ход без результата
+            } else {
+                let oldId = this.banditId; 
+                this.banditId = nextId;
+                let c = this.findCoords(oldId); 
+                this.grid[c.r][c.c].innocent = true;
+                this.log(`МАСКИРОВКА: Новый облик — ${target.name}`, 'bandit');
+            }
+            this.endAction();
+        }
+
         actionAccuse(id) {
             if (id === this.banditId) { 
                 this.log(`ПОБЕДА ИНСПЕКТОРА: Бандит арестован!`, 'inspector'); 
                 this.gameOver = true; 
-                ui.showModal("ПОБЕДА ИНСПЕКТОРА", "Бандит был пойман с поличным. Город может спать спокойно!");
+                ui.showModal("ПОБЕДА ИНСПЕКТОРА", "Бандит был пойман. Порядок в городе восстановлен!");
                 this.sync(); 
             } else { 
                 this.log(`ОШИБКА: ${this.grid[this.findCoords(id).r][this.findCoords(id).c].name} невиновен.`, 'inspector'); 
@@ -306,15 +300,18 @@
             }
         }
 
-        actionDisguise(id) {
-            let pos = this.findCoords(id);
-            let target = this.grid[pos.r][pos.c];
-            if (target.dead) {
-                this.log(`ПРОВАЛ: ${target.name} мертв. Маскировка невозможна!`, 'system');
-                ui.showModal("ОШИБКА", "Вы не можете принять облик трупа. Ваша попытка привлекла ненужное внимание, ход потерян.");
-            } else {
-                this.banditId = id;
-                this.log(`БАНДИТ сменил облик на: ${target.name}`, 'bandit');
+        actionExoneratePrep() { 
+            if (this.deck.length > 0) this.inspectorHand.push(this.deck.pop()); 
+            this.phase = 'inspector_exonerate_discard'; this.sync(); 
+        }
+
+        actionExonerateFinish(id) {
+            this.inspectorHand = this.inspectorHand.filter(i => i !== id);
+            let c = this.findCoords(id); 
+            if (c && !this.grid[c.r][c.c].dead) { 
+                this.grid[c.r][c.c].innocent = true; 
+                this.log(`ОПРАВДАНИЕ: ${this.grid[c.r][c.c].name}`, 'inspector');
+                this.runInterrogation(id, 'bandit'); 
             }
             this.endAction();
         }
@@ -324,7 +321,7 @@
             let actorId = (who === 'bandit' ? this.banditId : this.inspectorId);
             let cPos = this.findCoords(actorId);
             let near = Math.abs(tPos.r - cPos.r) <= 1 && Math.abs(tPos.c - cPos.c) <= 1;
-            const msg = `${who === 'bandit' ? 'Бандит' : 'Инспектор'} ${near ? 'РЯДОМ' : 'ДАЛЕКО'} от ${this.grid[tPos.r][tPos.c].name}.`;
+            const msg = `${who === 'bandit' ? 'Бандит' : 'Инспектор'} сейчас ${near ? 'РЯДОМ' : 'ДАЛЕКО'} от ${this.grid[tPos.r][tPos.c].name}.`;
             this.log(`ДОПРОС: ${msg}`, 'system');
             setTimeout(() => ui.showModal("ДОПРОС", msg), 500);
         }
@@ -334,8 +331,8 @@
             this.selectedAction = null; this.phase = 'main'; this.sync();
         }
 
-        log(txt, role) {
-            this.logs.unshift({ text: txt, role: role });
+        log(txt, type) {
+            this.logs.unshift({ text: txt, type: type });
             if (this.logs.length > 30) this.logs.pop();
         }
     }
@@ -345,33 +342,37 @@
 
     const ui = {
         localRole: null,
+
         setLocalRole(role) {
             this.localRole = role;
             document.getElementById('btn-role-bandit').classList.toggle('active', role === 'bandit');
             document.getElementById('btn-role-inspector').classList.toggle('active', role === 'inspector');
             this.render();
         },
+
         showModal(t, txt) { 
             document.getElementById('modal-title').textContent = t; 
             document.getElementById('modal-text').innerText = txt; 
             document.getElementById('modal').style.display = 'flex'; 
         },
+
         closeModal() { document.getElementById('modal').style.display = 'none'; },
-        
+
         render() {
             const g = window.game;
             const isMyTurn = (this.localRole === g.activePlayer);
             
             // Счетчик трупов
             const deadCount = g.grid.flat().filter(c => c.dead).length;
-            document.getElementById('kill-count').textContent = deadCount;
-            document.getElementById('death-progress').style.width = (deadCount / 14 * 100) + '%';
+            document.getElementById('death-stats').textContent = `Убито: ${deadCount} / 14`;
 
+            // Ход
             const turnEl = document.getElementById('turn-indicator');
             turnEl.textContent = `ХОД: ${g.activePlayer === 'bandit' ? 'БАНДИТА' : 'ИНСПЕКТОРА'}`;
             turnEl.style.color = g.activePlayer === 'bandit' ? 'var(--accent-red)' : 'var(--accent-blue)';
             if (!isMyTurn) turnEl.textContent += " (...)";
 
+            // Личность
             const identityEl = document.getElementById('player-identity');
             if (this.localRole === 'bandit') {
                 let p = g.findCoords(g.banditId);
@@ -381,6 +382,7 @@
                 identityEl.textContent = p ? g.grid[p.r][p.c].name : (g.phase === 'setup_inspector' ? "ВЫБОР" : "НЕТ");
             }
 
+            // Поле
             const boardEl = document.getElementById('board');
             boardEl.innerHTML = '';
             for (let r = 0; r < 5; r++) {
@@ -390,22 +392,36 @@
                     div.className = 'card' + (cell.dead ? ' status-dead' : '') + (cell.innocent ? ' status-innocent' : '');
                     div.textContent = cell.name;
                     
-                    if (isMyTurn && !g.gameOver) {
-                        if (g.selectedAction === 'cleanup') {
-                            if (cell.dead) {
-                                div.classList.add('target-valid');
-                                if (g.cleanupSelection.includes(cell.id)) div.classList.add('selected-for-cleanup');
-                                div.onclick = () => this.toggleCleanupSelection(cell.id, r, c);
-                            }
-                        } else if (this.isTargetMode(r, c)) {
-                            div.classList.add('target-valid');
-                            div.onclick = () => this.handleBoardClick(cell.id);
-                        }
+                    if (isMyTurn && !g.gameOver && this.isTargetMode(r, c)) {
+                        div.classList.add('target-valid');
+                        div.onclick = () => this.handleBoardClick(cell.id);
                     }
                     boardEl.appendChild(div);
                 }
             }
 
+            document.querySelectorAll('.shift-ctrl').forEach(btn => btn.disabled = !isMyTurn || g.phase !== 'main' || g.selectedAction || g.gameOver);
+
+            // Действия
+            const actionBtns = document.getElementById('action-buttons');
+            actionBtns.innerHTML = '';
+            const instr = document.getElementById('instruction-text');
+            
+            if (g.gameOver) instr.textContent = "ИГРА ОКОНЧЕНА";
+            else if (!isMyTurn) instr.textContent = "Ждем другого игрока...";
+            else {
+                if (g.phase === 'main') {
+                    if (g.activePlayer === 'bandit') {
+                        this.createBtn(actionBtns, 'УБИТЬ СОСЕДА', 'kill', () => { g.selectedAction = 'kill'; this.render(); });
+                        this.createBtn(actionBtns, 'СМЕНИТЬ ОБЛИК', '', () => g.actionDisguise());
+                    } else {
+                        this.createBtn(actionBtns, 'ОБВИНИТЬ', 'kill', () => { g.selectedAction = 'accuse'; this.render(); });
+                        this.createBtn(actionBtns, 'ОПРАВДАТЬ', '', () => g.actionExoneratePrep());
+                    }
+                }
+            }
+
+            // Рука инспектора
             const handContainer = document.getElementById('hand-cards');
             if (this.localRole === 'inspector' && g.inspectorHand.length > 0) {
                 document.getElementById('inspector-hand-ui').style.display = 'block';
@@ -413,68 +429,30 @@
                 g.inspectorHand.forEach(id => {
                     let div = document.createElement('div'); div.className = 'hand-card';
                     div.textContent = "Зацепка #" + id;
-                    if (isMyTurn && g.phase === 'setup_inspector') div.onclick = () => g.setupInspectorIdentity(id);
+                    if (isMyTurn && (g.phase === 'setup_inspector' || g.phase === 'inspector_exonerate_discard')) {
+                        div.onclick = () => this.handleHandClick(id);
+                    }
                     handContainer.appendChild(div);
                 });
             } else { document.getElementById('inspector-hand-ui').style.display = 'none'; }
 
-            document.querySelectorAll('.shift-ctrl').forEach(btn => btn.disabled = !isMyTurn || g.phase !== 'main' || g.selectedAction || g.gameOver);
-
-            const actionBtns = document.getElementById('action-buttons');
-            actionBtns.innerHTML = '';
-            const instr = document.getElementById('instruction-text');
-            
-            if (g.gameOver) instr.textContent = "КОНЕЦ ИГРЫ";
-            else if (!isMyTurn) instr.textContent = "Ожидание хода оппонента...";
-            else {
-                if (g.selectedAction === 'cleanup') {
-                    instr.textContent = "Выберите по 1 телу в линиях:";
-                    this.createBtn(actionBtns, 'ПОДТВЕРДИТЬ УБОРКУ', 'confirm-cleanup', () => g.confirmCleanup());
-                    this.createBtn(actionBtns, 'ОТМЕНА', '', () => { g.selectedAction = null; g.cleanupSelection = []; this.render(); });
-                } else if (g.phase === 'main') {
-                    instr.textContent = "Ваше действие:";
-                    if (g.activePlayer === 'bandit') {
-                        this.createBtn(actionBtns, 'УБИТЬ СОСЕДА', 'kill', () => { g.selectedAction = 'kill'; this.render(); });
-                        this.createBtn(actionBtns, 'СМЕНИТЬ ОБЛИК', 'disguise', () => { g.selectedAction = 'disguise'; this.render(); });
-                    } else {
-                        this.createBtn(actionBtns, 'ОБВИНИТЬ', 'kill', () => { g.selectedAction = 'accuse'; this.render(); });
-                    }
-                    this.createBtn(actionBtns, 'УТИЛИЗАЦИЯ ТЕЛ', 'cleanup-mode', () => { g.selectedAction = 'cleanup'; this.render(); });
-                }
-            }
-
+            // Логи
             const logArea = document.getElementById('game-log');
-            logArea.innerHTML = g.logs.map(l => `<div class="log-line log-${l.role}">> ${l.text}</div>`).join('');
-        },
-
-        toggleCleanupSelection(id, r, c) {
-            const g = window.game;
-            const conflict = g.cleanupSelection.some(sid => {
-                let coords = g.findCoords(sid);
-                return coords.r === r || coords.c === c;
-            });
-
-            if (g.cleanupSelection.includes(id)) {
-                g.cleanupSelection = g.cleanupSelection.filter(sid => sid !== id);
-            } else if (!conflict) {
-                g.cleanupSelection.push(id);
-            }
-            this.render();
+            logArea.innerHTML = g.logs.map(l => `<div class="log-line log-${l.type || 'system'}">> ${l.text}</div>`).join('');
         },
 
         isTargetMode(r, c) {
             const g = window.game;
             let cell = g.grid[r][c];
             
-            // Новое условие: нельзя выбирать целью уже мертвых
-            if (cell.dead && (g.selectedAction === 'kill' || g.selectedAction === 'disguise' || g.selectedAction === 'accuse' || g.phase === 'setup_bandit')) {
-                return false;
-            }
+            // НОВАЯ ПРОВЕРКА: Нельзя выбирать уже мертвых для действий
+            if (cell.dead) return false;
 
             let actId = g.activePlayer === 'bandit' ? g.banditId : g.inspectorId;
-            if (g.phase === 'setup_bandit' || g.selectedAction === 'kill' || g.selectedAction === 'accuse' || g.selectedAction === 'disguise') {
+            if (g.phase === 'setup_bandit' || g.selectedAction === 'kill' || g.selectedAction === 'accuse') {
                 let p = g.findCoords(actId); if (!p) return false;
                 let n = g.getNeighbors(p.r, p.c);
+                if (g.selectedAction === 'accuse') n.push(g.inspectorId);
                 return n.includes(cell.id);
             }
             return false;
@@ -482,9 +460,13 @@
 
         handleBoardClick(id) {
             if (window.game.phase === 'setup_bandit') window.game.setupBanditKill(id);
-            else if (window.game.selectedAction === 'kill') window.game.killSuspect(id) || window.game.endAction();
+            else if (window.game.selectedAction === 'kill') window.game.actionKill(id);
             else if (window.game.selectedAction === 'accuse') window.game.actionAccuse(id);
-            else if (window.game.selectedAction === 'disguise') window.game.actionDisguise(id);
+        },
+
+        handleHandClick(id) {
+            if (window.game.phase === 'setup_inspector') window.game.setupInspectorIdentity(id);
+            else if (window.game.phase === 'inspector_exonerate_discard') window.game.actionExonerateFinish(id);
         },
 
         createBtn(parent, txt, cls, fn) {
@@ -494,9 +476,9 @@
     };
     window.ui = ui;
 
-    onValue(gameRef, (snap) => {
-        const d = snap.val();
-        if (d) { Object.assign(game, d); ui.render(); } 
+    onValue(gameRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) { Object.assign(game, data); ui.render(); } 
         else { game.resetGame(); }
     });
 </script>
