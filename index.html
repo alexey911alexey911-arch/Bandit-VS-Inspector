@@ -283,11 +283,31 @@
         }
 
         actionDisguise() {
-            if (this.deck.length === 0) return;
-            let oldId = this.banditId; this.banditId = this.deck.pop();
-            let c = this.findCoords(oldId); this.grid[c.r][c.c].innocent = true;
-            this.log("Бандит сменил внешность.", "bandit"); 
-            this.endAction();
+            if (this.deck.length === 0) {
+                this.log("Колода пуста, маскировка невозможна!", "system");
+                this.endAction();
+                return;
+            }
+
+            const randomIndex = Math.floor(Math.random() * this.deck.length);
+            const newId = this.deck.splice(randomIndex, 1)[0];
+            const newPersonCoords = this.findCoords(newId);
+            const newPerson = this.grid[newPersonCoords.r][newPersonCoords.c];
+
+            if (newPerson.dead) {
+                this.log(`Провальная маскировка! ${newPerson.name} уже мертв. Бандит теряет ход.`, "bandit");
+                this.deck.push(newId);
+                this.endAction();
+            } else {
+                let oldId = this.banditId;
+                this.banditId = newId;
+                
+                let oldCoords = this.findCoords(oldId);
+                if (oldCoords) this.grid[oldCoords.r][oldCoords.c].innocent = true;
+
+                this.log(`Бандит успешно сменил облик. Старая личность оправдана.`, "bandit");
+                this.endAction();
+            }
         }
 
         actionExoneratePrep() { 
