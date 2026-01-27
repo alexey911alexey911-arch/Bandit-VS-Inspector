@@ -194,7 +194,8 @@
                 for (let dc = -1; dc <= 1; dc++) {
                     if (dr === 0 && dc === 0) continue;
                     let nr = r + dr, nc = c + dc;
-                    if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) n.push(this.grid[nr][nc].id);
+                    // Исправлено: добавлена проверка !this.grid[nr][nc].dead
+                    if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5 && !this.grid[nr][nc].dead) n.push(this.grid[nr][nc].id);
                 }
             }
             return n;
@@ -285,21 +286,17 @@
         actionDisguise() {
             if (this.deck.length === 0) return;
             
-            // Выбираем случайный индекс из колоды
             const randomIndex = Math.floor(Math.random() * this.deck.length);
             const newId = this.deck[randomIndex];
             const targetCellCoords = this.findCoords(newId);
             const targetCell = this.grid[targetCellCoords.r][targetCellCoords.c];
 
             if (targetCell.dead) {
-                // Если персонаж мертв, маскировка не удалась
                 this.log(`МАСКИРОВКА ПРОВАЛЕНА: ${targetCell.name} мертв! Бандит теряет ход.`, "bandit");
                 setTimeout(() => ui.showModal("ПРОВАЛ", `Вы пытались замаскироваться под мертвеца (${targetCell.name}) и выдали себя! Ход потерян.`), 300);
                 this.endAction();
             } else {
-                // Успешная маскировка
                 let oldId = this.banditId;
-                // Удаляем выбранный ID из колоды
                 this.deck.splice(randomIndex, 1);
                 this.banditId = newId;
                 let c = this.findCoords(oldId);
@@ -319,7 +316,7 @@
             let c = this.findCoords(id); 
             if (c && !this.grid[c.r][c.c].dead) { 
                 this.grid[c.r][c.c].innocent = true; 
-                this.log(`ОПРАВДАНИЕ: ${this.grid[c.r][c.c].name}`, "inspector");
+                this.log(`ОПРАВДАНЫЕ: ${this.grid[c.r][c.c].name}`, "inspector");
                 this.runInterrogation(id, 'bandit'); 
             }
             this.endAction();
@@ -414,7 +411,7 @@
                     div.className = 'card' + (cell.dead ? ' status-dead' : '') + (cell.innocent ? ' status-innocent' : '');
                     div.textContent = cell.name;
                     
-                    if (isMyTurn && this.isTargetMode(r, c)) {
+                    if (isMyTurn && !cell.dead && this.isTargetMode(r, c)) {
                         div.classList.add('target-valid');
                         div.onclick = () => this.handleBoardClick(cell.id);
                     }
