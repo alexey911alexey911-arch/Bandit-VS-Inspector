@@ -143,6 +143,7 @@
     const gameRef = ref(db, 'bandit_game/v2_state');
 
     const NAMES = ["Анна-Лиза", "Розанов", "Холландер", "Дороти", "Волочкова", "Бузова", "Шелдон", "Эмми", "Леонард", "Бернадет", "Пэнни", "Бри", "Габриэль", "Линнет", "Сьюзан", "Коннор", "Скотт", "Стефан", "Кэтрин", "Дэймон", "Уилл", "Майк", "Прохор", "Кип", "Бонни"];
+
     class BanditGame {
         constructor() {
             this.grid = []; this.deck = []; this.banditId = null; this.inspectorId = null;
@@ -193,7 +194,6 @@
                 for (let dc = -1; dc <= 1; dc++) {
                     if (dr === 0 && dc === 0) continue;
                     let nr = r + dr, nc = c + dc;
-                    // Исправлено: добавлена проверка !this.grid[nr][nc].dead
                     if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5 && !this.grid[nr][nc].dead) n.push(this.grid[nr][nc].id);
                 }
             }
@@ -498,5 +498,3 @@
 </script>
 </body>
 </html>
-
-
