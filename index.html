@@ -233,7 +233,7 @@
 
         setupInspectorIdentity(id) {
             this.inspectorId = id;
-            this.inspectorHand = this.inspectorHand.filter(i => i !== id);
+            this.inspectorHand = [];
             this.phase = 'main'; this.activePlayer = 'bandit';
             this.log("Инспектор в игре. Охота началась.", "inspector");
             this.sync();
