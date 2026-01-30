@@ -489,6 +489,7 @@
     onValue(gameRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
+            if (!data.inspectorHand) data.inspectorHand = [];
             Object.assign(game, data);
             ui.render();
         } else {
