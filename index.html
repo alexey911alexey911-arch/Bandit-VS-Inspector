@@ -148,7 +148,8 @@
         constructor() {
             this.grid = []; this.deck = []; this.banditId = null; this.inspectorId = null;
             this.inspectorHand = []; this.activePlayer = 'bandit'; 
-            this.phase = 'setup_bandit'; this.selectedAction = null; this.lastShift = null; this.gameOver = false;
+            this.phase = 'setup_bandit'; this.selectedAction = null; this.gameOver = false;
+            this.currentTurnShift = null; this.lastTurnShift = null;       
             this.logs = [];
         }
 
@@ -157,7 +158,9 @@
                 grid: this.grid, deck: this.deck, banditId: this.banditId, 
                 inspectorId: this.inspectorId, inspectorHand: this.inspectorHand,
                 activePlayer: this.activePlayer, phase: this.phase, 
-                lastShift: this.lastShift || {}, gameOver: this.gameOver, logs: this.logs
+                gameOver: this.gameOver, logs: this.logs,
+                currentTurnShift: this.currentTurnShift || null,
+                lastTurnShift: this.lastTurnShift || null,
             });
         }
 
@@ -201,22 +204,24 @@
         }
 
         shiftRow(r, dir) {
-            if (this.lastShift && this.lastShift.type === 'row' && this.lastShift.index === r && this.lastShift.dir === -dir) return;
+            if (this.lastTurnShift && this.lastTurnShift.type === 'row' && 
+            this.lastTurnShift.index === r && this.lastTurnShift.dir === -dir) return;
             if (dir === 1) this.grid[r].unshift(this.grid[r].pop());
             else this.grid[r].push(this.grid[r].shift());
-            this.lastShift = { type: 'row', index: r, dir: dir };
+            this.currentTurnShift = { type: 'row', index: r, dir: dir };
             this.log(`Ряд ${r + 1} сдвинут ${dir === 1 ? 'вправо' : 'влево'}.`, 'shift');
             this.endAction();
         }
 
         shiftCol(c, dir) {
-            if (this.lastShift && this.lastShift.type === 'col' && this.lastShift.index === c && this.lastShift.dir === -dir) return;
+            if (this.lastTurnShift && this.lastTurnShift.type === 'col' && 
+            this.lastTurnShift.index === c && this.lastTurnShift.dir === -dir) return;
             let col = [];
             for(let r=0; r<5; r++) col.push(this.grid[r][c]);
             if (dir === 1) col.unshift(col.pop());
             else col.push(col.shift());
             for(let r=0; r<5; r++) this.grid[r][c] = col[r];
-            this.lastShift = { type: 'col', index: c, dir: dir };
+            this.currentTurnShift = { type: 'col', index: c, dir: dir };
             this.log(`Столбец ${c + 1} сдвинут ${dir === 1 ? 'вниз' : 'вверх'}.`, 'shift');
             this.endAction();
         }
@@ -226,14 +231,19 @@
             if (!this.getNeighbors(p.r, p.c).includes(id)) return;
             this.killSuspect(id);
             this.phase = 'setup_inspector'; this.activePlayer = 'inspector';
-            for(let i=0; i<4; i++) this.inspectorHand.push(this.deck.pop());
+            this.inspectorHand = [];
+            for(let i=0; i<4; i++) this.inspectorHand.push(this.deck.pop());	
             this.log("Первая жертва пала! Инспектор, выберите маскировку.", "bandit");
             this.sync();
         }
 
         setupInspectorIdentity(id) {
+            const coords = this.findCoords(id);
+            const targetCell = this.grid[coords.r][coords.c];
+            if (targetCell.dead) return;
+
             this.inspectorId = id;
-            this.inspectorHand = [];
+            this.inspectorHand = this.inspectorHand.filter(i => i !== id);
             this.phase = 'main'; this.activePlayer = 'bandit';
             this.log("Инспектор в игре. Охота началась.", "inspector");
             this.sync();
@@ -334,6 +344,8 @@
         endAction() {
             this.activePlayer = this.activePlayer === 'bandit' ? 'inspector' : 'bandit';
             this.selectedAction = null; this.phase = 'main'; this.sync();
+            this.lastTurnShift = this.currentTurnShift;
+            this.currentTurnShift = null;
         }
 
         log(m, type = 'system') { 
