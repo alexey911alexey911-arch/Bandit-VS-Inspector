@@ -181,6 +181,7 @@
             this.inspectorId = null; this.inspectorHand = [];
             this.activePlayer = 'bandit'; this.phase = 'setup_bandit';
             this.gameOver = false; 
+            this.lastTurnShift = null; this.currentTurnShift = null;
             this.logs = [{text: "Миссия: Бандит должен убить соседа.", type: "system"}];
             this.sync();
         }
@@ -302,7 +303,7 @@
 
             if (targetCell.dead) {
                 this.log(`МАСКИРОВКА ПРОВАЛЕНА: ${targetCell.name} мертв! Бандит теряет ход.`, "bandit");
-                setTimeout(() => ui.showModal("ПРОВАЛ", `Вы пытались замаскироваться под мертвеца (${targetCell.name}) и выдали себя! Ход потерян.`), 300);
+                setTimeout(() => ui.showModal("ПРОВАЛ", `Вы пытались замаскироваться под мертвеца (${targetCell.name})! Ход потерян.`), 300);
                 this.endAction();
             } else {
                 let oldId = this.banditId;
